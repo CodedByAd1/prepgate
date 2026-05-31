@@ -1,0 +1,521 @@
+// schema.prisma
+// ─────────────────────────────────────────────────────────────────────────────
+// Generator & Datasource
+// ─────────────────────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum QuestionType {
+  MCQ
+  MSQ
+  NAT
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum MockTestType {
+  FULL_SYLLABUS
+  SUBJECT_WISE
+  TOPIC_WISE
+  WEAK_TOPIC
+  CUSTOM
+}
+
+enum MockAttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  ABANDONED
+  TIMED_OUT
+}
+
+enum ChatRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+enum RecommendationType {
+  TOPIC_REVIEW
+  MOCK_TEST
+  VIDEO_WATCH
+  WEAK_AREA_DRILL
+  STRENGTH_REINFORCE
+  DAILY_GOAL
+  SPACED_REPETITION
+}
+
+enum Subject {
+  ENGINEERING_MATHS
+  DISCRETE_MATHS
+  ALGORITHMS
+  DATA_STRUCTURES
+  THEORY_OF_COMPUTATION
+  COMPILER_DESIGN
+  OPERATING_SYSTEMS
+  COMPUTER_NETWORKS
+  DATABASES
+  COMPUTER_ORGANIZATION
+  DIGITAL_LOGIC
+  PROGRAMMING_C
+  GENERAL_APTITUDE
+}
+
+enum UserPlan {
+  FREE
+  PRO
+  INSTITUTE
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AUTH MODELS (NextAuth v5 / @auth/prisma-adapter compatible)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  plan          UserPlan  @default(FREE)
+
+  // Denormalized streak fields – updated by background job
+  currentStreak  Int       @default(0)
+  longestStreak  Int       @default(0)
+  lastActiveDate DateTime? @db.Date
+
+  // Soft delete
+  deletedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // NextAuth relations
+  accounts Account[]
+  sessions Session[]
+
+  // Platform relations
+  playlists        UserPlaylist[]
+  videoProgress    VideoProgress[]
+  questionAttempts QuestionAttempt[]
+  mockAttempts     MockAttempt[]
+  chatSessions     ChatSession[]
+  recommendations  Recommendation[]
+  studyStreaks      StudyStreak[]
+  subjectStats     SubjectStat[]
+  topicStats       TopicStat[]
+  tokenBudget      TokenBudget?
+
+  @@index([email])
+  @@index([deletedAt])
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expires])
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LECTURE HUB
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Playlist {
+  id                String  @id @default(cuid())
+  title             String
+  youtubePlaylistId String  @unique
+  thumbnail         String?
+  instructor        String
+  subject           Subject
+  totalVideos       Int     @default(0)
+  description       String? @db.Text
+  isPublished       Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  videos    Video[]
+  userSaves UserPlaylist[]
+
+  @@index([subject, isPublished])
+  @@map("playlists")
+}
+
+model UserPlaylist {
+  userId     String
+  playlistId String
+  savedAt    DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  playlist Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+
+  @@id([userId, playlistId])
+  @@map("user_playlists")
+}
+
+model Video {
+  id             String  @id @default(cuid())
+  youtubeVideoId String  @unique
+  title          String
+  thumbnail      String?
+  duration       Int // seconds
+  orderIndex     Int
+  playlistId     String
+  subject        Subject
+  topic          String?
+
+  createdAt DateTime @default(now())
+
+  playlist Playlist        @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  progress VideoProgress[]
+
+  @@index([playlistId, orderIndex])
+  @@index([subject, topic])
+  @@map("videos")
+}
+
+model VideoProgress {
+  userId      String
+  videoId     String
+  completed   Boolean   @default(false)
+  watchedSecs Int       @default(0)
+  completedAt DateTime?
+  updatedAt   DateTime  @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@id([userId, videoId])
+  @@index([userId, completed])
+  @@map("video_progress")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PYQ SYSTEM
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Question {
+  id           String       @id @default(cuid())
+  subject      Subject
+  topic        String
+  year         Int
+  marks        Float
+  difficulty   Difficulty
+  questionType QuestionType
+  questionText String       @db.Text
+  options      Json?
+  answer       Json
+  explanation  String?      @db.Text
+  imageUrl     String?
+  tags         String[]
+  isVerified   Boolean      @default(false)
+
+  // Denormalized counters
+  totalAttempts   Int   @default(0)
+  correctAttempts Int   @default(0)
+  avgTimeTaken    Float @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  attempts         QuestionAttempt[]
+  mockTestQuestion MockTestQuestion[]
+
+  @@index([subject, topic])
+  @@index([subject, difficulty])
+  @@index([year, subject])
+  @@index([questionType, subject])
+  @@map("questions")
+}
+
+model QuestionAttempt {
+  id             String   @id @default(cuid())
+  userId         String
+  questionId     String
+  selectedAnswer Json
+  isCorrect      Boolean
+  marksAwarded   Float    @default(0)
+  timeTaken      Int // seconds
+  subject        Subject // denormalized
+  topic          String // denormalized
+  attemptedAt    DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([userId, attemptedAt(sort: Desc)])
+  @@index([userId, subject, isCorrect])
+  @@index([userId, topic, isCorrect])
+  @@index([questionId, isCorrect])
+  @@map("question_attempts")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MOCK TEST SYSTEM
+// ─────────────────────────────────────────────────────────────────────────────
+
+model MockTest {
+  id          String       @id @default(cuid())
+  title       String
+  type        MockTestType
+  totalMarks  Float
+  duration    Int // minutes
+  subject     Subject?
+  topic       String?
+  isPublished Boolean      @default(true)
+  scheduledAt DateTime?
+  endsAt      DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  questions MockTestQuestion[]
+  attempts  MockAttempt[]
+
+  @@index([type, isPublished])
+  @@index([subject, type])
+  @@map("mock_tests")
+}
+
+model MockTestQuestion {
+  mockTestId String
+  questionId String
+  orderIndex Int
+  marks      Float
+
+  mockTest MockTest @relation(fields: [mockTestId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@id([mockTestId, questionId])
+  @@index([mockTestId, orderIndex])
+  @@map("mock_test_questions")
+}
+
+model MockAttempt {
+  id          String            @id @default(cuid())
+  userId      String
+  mockTestId  String
+  status      MockAttemptStatus @default(IN_PROGRESS)
+  score       Float             @default(0)
+  totalMarks  Float
+  accuracy    Float             @default(0)
+  timeTaken   Int               @default(0)
+  startedAt   DateTime          @default(now())
+  submittedAt DateTime?
+  deletedAt   DateTime?
+
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mockTest  MockTest       @relation(fields: [mockTestId], references: [id], onDelete: Cascade)
+  responses MockResponse[]
+
+  @@index([userId, startedAt(sort: Desc)])
+  @@index([userId, status])
+  @@index([mockTestId, status])
+  @@map("mock_attempts")
+}
+
+model MockResponse {
+  id             String   @id @default(cuid())
+  mockAttemptId  String
+  questionId     String
+  answer         Json?
+  isCorrect      Boolean?
+  marksAwarded   Float    @default(0)
+  timeSpent      Int      @default(0)
+  isMarkedReview Boolean  @default(false)
+  answeredAt     DateTime @default(now())
+
+  mockAttempt MockAttempt @relation(fields: [mockAttemptId], references: [id], onDelete: Cascade)
+
+  @@unique([mockAttemptId, questionId])
+  @@index([mockAttemptId])
+  @@map("mock_responses")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AI TUTOR
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ChatSession {
+  id           String   @id @default(cuid())
+  userId       String
+  title        String   @default("New Conversation")
+  subject      Subject?
+  messageCount Int      @default(0)
+  totalTokens  Int      @default(0)
+  deletedAt    DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages ChatMessage[]
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("chat_sessions")
+}
+
+model ChatMessage {
+  id         String   @id @default(cuid())
+  sessionId  String
+  role       ChatRole
+  content    String   @db.Text
+  tokenCount Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt(sort: Asc)])
+  @@map("chat_messages")
+}
+
+model TokenBudget {
+  userId       String   @id
+  dailyLimit   Int      @default(10000)
+  dailyUsed    Int      @default(0)
+  monthlyLimit Int      @default(200000)
+  monthlyUsed  Int      @default(0)
+  resetDate    DateTime @db.Date
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("token_budgets")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ANALYTICS — MULTI-LEVEL MATERIALIZED CACHE
+// ─────────────────────────────────────────────────────────────────────────────
+
+model SubjectStat {
+  userId           String
+  subject          Subject
+  totalAttempted   Int      @default(0)
+  totalCorrect     Int      @default(0)
+  accuracy         Float    @default(0)
+  avgTimeTaken     Float    @default(0)
+  totalMarksEarned Float    @default(0)
+  easyAttempted    Int      @default(0)
+  mediumAttempted  Int      @default(0)
+  hardAttempted    Int      @default(0)
+  lastAttemptAt    DateTime?
+  updatedAt        DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, subject])
+  @@index([userId])
+  @@map("subject_stats")
+}
+
+model TopicStat {
+  userId         String
+  subject        Subject
+  topic          String
+  totalAttempted Int      @default(0)
+  totalCorrect   Int      @default(0)
+  accuracy       Float    @default(0)
+  avgTimeTaken   Float    @default(0)
+  nextReviewAt   DateTime?
+  easeFactor     Float    @default(2.5)
+  interval       Int      @default(1)
+  lastAttemptAt  DateTime?
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, subject, topic])
+  @@index([userId, accuracy(sort: Asc)])
+  @@index([userId, nextReviewAt])
+  @@map("topic_stats")
+}
+
+model StudyStreak {
+  userId             String
+  date               DateTime @db.Date
+  questionsAttempted Int      @default(0)
+  videosWatched      Int      @default(0)
+  mocksAttempted     Int      @default(0)
+  studyMinutes       Int      @default(0)
+  tokensUsed         Int      @default(0)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, date])
+  @@index([userId, date(sort: Desc)])
+  @@map("study_streaks")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RECOMMENDATION ENGINE
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Recommendation {
+  id                 String             @id @default(cuid())
+  userId             String
+  recommendationType RecommendationType
+  content            Json
+  priority           Int                @default(0)
+  isActedUpon        Boolean            @default(false)
+  isDismissed        Boolean            @default(false)
+  expiresAt          DateTime?
+  createdAt          DateTime           @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, priority(sort: Desc)])
+  @@index([userId, expiresAt])
+  @@map("recommendations")
+}
