@@ -15,6 +15,7 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  ShieldCheck,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -40,6 +41,12 @@ const navItems = [
       { href: "/analytics", label: "Analytics", icon: BarChart3 },
       { href: "/progress", label: "Progress", icon: TrendingUp },
       { href: "/recommendations", label: "Recommendations", icon: Lightbulb },
+    ],
+  },
+  {
+    group: "Admin",
+    items: [
+      { href: "/admin/questions", label: "Question Bank", icon: ShieldCheck, badge: "Admin" },
     ],
   },
   {

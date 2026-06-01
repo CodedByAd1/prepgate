@@ -342,3 +342,45 @@ body {
   border-radius: 999px;
   white-space: nowrap;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   FORM UTILITIES
+───────────────────────────────────────────────────────────────────────────── */
+.label-form {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--foreground);
+}
+
+.input-form {
+  width: 100%;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background-color: var(--background);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  color: var(--foreground);
+  transition: box-shadow var(--transition-fast), border-color var(--transition-fast);
+  outline: none;
+}
+
+.input-form::placeholder {
+  color: var(--muted-foreground);
+}
+
+.input-form:focus {
+  box-shadow: 0 0 0 2px var(--ring);
+  border-color: var(--brand);
+}
+
+.form-error {
+  font-size: 0.75rem;
+  color: var(--destructive);
+  margin-top: 0.25rem;
+}
+
+/* Brand shadow utility */
+.shadow-brand {
+  box-shadow: var(--shadow-brand);
+}

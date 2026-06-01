@@ -251,22 +251,28 @@ model Question {
   id           String       @id @default(cuid())
   subject      Subject
   topic        String
-  year         Int
-  marks        Float
+  year         Int          // GATE exam year, e.g. 2024
+  marks        Float        // 1 or 2
   difficulty   Difficulty
   questionType QuestionType
   questionText String       @db.Text
-  options      Json?
-  answer       Json
+  options      Json?        // [{"key":"A","text":"..."}, ...] for MCQ/MSQ
+  answer       Json         // "A" for MCQ | ["A","C"] for MSQ | 42.5 for NAT
   explanation  String?      @db.Text
-  imageUrl     String?
-  tags         String[]
+  imageUrl     String?      // optional uploaded question image
+  imageDescription String?  @db.Text // AI-generated diagram description (Gemini)
+  tags         String[]     // e.g. ["sorting", "graph"]
+  source       String?      // e.g. "GATE CS 2024"
+  paperSet     String?      // e.g. "Set 1" (some years had multiple sets)
   isVerified   Boolean      @default(false)
 
-  // Denormalized counters
+  // Soft delete
+  deletedAt DateTime?
+
+  // Denormalized counters (updated by background job)
   totalAttempts   Int   @default(0)
   correctAttempts Int   @default(0)
-  avgTimeTaken    Float @default(0)
+  avgTimeTaken    Float @default(0) // seconds
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -278,6 +284,8 @@ model Question {
   @@index([subject, difficulty])
   @@index([year, subject])
   @@index([questionType, subject])
+  @@index([isVerified, subject])
+  @@index([deletedAt])
   @@map("questions")
 }
 
