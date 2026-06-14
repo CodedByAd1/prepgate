@@ -15,7 +15,7 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
-  ShieldCheck,
+  Upload,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -46,7 +46,7 @@ const navItems = [
   {
     group: "Admin",
     items: [
-      { href: "/admin/questions", label: "Question Bank", icon: ShieldCheck, badge: "Admin" },
+      { href: "/admin/import-pdf", label: "Import PDF", icon: Upload, badge: "Admin" },
     ],
   },
   {

@@ -1,21 +1,17 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { PYQPractice } from "@/components/pyq/pyq-practice";
+import { QuestionPapers } from "@/components/pyq/question-papers";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "PYQ Practice",
+  title: "Question Papers",
   description:
-    "Practice GATE Previous Year Questions filtered by subject, topic, year, difficulty, and question type. Track your accuracy and attempt history.",
+    "Browse and view official GATE CSE question paper PDFs, year by year.",
 };
 
 export default async function PYQPage() {
   const session = await auth();
   if (!session) redirect("/login");
 
-  return (
-    <div className="mx-auto max-w-5xl">
-      <PYQPractice />
-    </div>
-  );
+  return <QuestionPapers />;
 }

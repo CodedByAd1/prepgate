@@ -527,3 +527,96 @@ model Recommendation {
   @@index([userId, expiresAt])
   @@map("recommendations")
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PDF EXTRACTION PIPELINE
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum PdfImportStatus {
+  UPLOADED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model PdfImport {
+  id         String          @id @default(cuid())
+  fileName   String
+  storageUrl String
+  status     PdfImportStatus @default(UPLOADED)
+  totalPages Int             @default(0)
+  errorMsg   String?         @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  pages              PdfPage[]
+  extractedQuestions ExtractedQuestion[]
+
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+  @@map("pdf_imports")
+}
+
+model PdfPage {
+  id          String  @id @default(cuid())
+  pdfImportId String
+  pageNumber  Int
+  imageUrl    String
+  processed   Boolean @default(false)
+  errorMsg    String? @db.Text
+
+  createdAt DateTime @default(now())
+
+  pdfImport          PdfImport           @relation(fields: [pdfImportId], references: [id], onDelete: Cascade)
+  extractedQuestions ExtractedQuestion[]
+
+  @@unique([pdfImportId, pageNumber])
+  @@index([pdfImportId, processed])
+  @@map("pdf_pages")
+}
+
+model ExtractedQuestion {
+  id                   String       @id @default(cuid())
+  pdfImportId          String
+  pdfPageId            String?
+  questionNumber       Int
+  questionText         String       @db.Text
+  options              Json?        // { "A": "...", "B": "...", "C": "...", "D": "..." }
+  imageUrl             String?      // cropped diagram image URL
+  questionType         QuestionType @default(MCQ)
+  containsDiagram      Boolean      @default(false)
+  continued            Boolean      @default(false)  // continues to next page
+  extractionConfidence Float        @default(0.8)
+  reviewStatus         ReviewStatus @default(PENDING)
+
+  // Admin review fields
+  subject     Subject?
+  topic       String?
+  year        Int?
+  marks       Float?
+  difficulty  Difficulty?
+  answer      Json?        // "A" | ["A","C"] | 42.5
+  explanation String?      @db.Text
+
+  // Import tracking
+  importedQuestionId String?  // set after finalization
+  importedAt         DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  pdfImport PdfImport @relation(fields: [pdfImportId], references: [id], onDelete: Cascade)
+  pdfPage   PdfPage?  @relation(fields: [pdfPageId], references: [id], onDelete: SetNull)
+
+  @@unique([pdfImportId, questionNumber])
+  @@index([pdfImportId, reviewStatus])
+  @@index([reviewStatus])
+  @@map("extracted_questions")
+}
